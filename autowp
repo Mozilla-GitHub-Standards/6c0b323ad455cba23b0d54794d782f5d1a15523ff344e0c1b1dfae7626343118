@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import os
+import re
+import sys
+
+from ruamel import yaml
+from subprocess import check_call
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
+
+from fmt import fmt, pfmt
+
+def run(cmd):
+    check_call(cmd, shell=True)
+
+def load_config(config):
+    return yaml.safe_load(open(config))
+
+def create_params(args):
+    return ' '.join(["'"+arg+"'" if ' ' in arg else arg for arg in args])
+
+def install_wordpress(ns):
+    run('wp core download --version={0}'.format(ns.wordpress_version))
+
+def main(args):
+    parser = ArgumentParser(
+        description='SOME DESC',
+        formatter_class=RawDescriptionHelpFormatter,
+        add_help=False)
+    parser.add_argument(
+        '--docker',
+        default=os.path.isfile('/.dockerenv'),
+        action='store_true',
+        help='default="%(default)s"; inside a docker container')
+    parser.add_argument(
+        '--entrypoint',
+        const='/bin/bash',
+        nargs='?',
+        help='default="%(default)s"; const="%(const)s"; set the entrypoint')
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='verbose printing')
+
+    ns, args = parser.parse_known_args(args)
+
+    if not ns.docker and '--help' not in args:
+        entrypoint = '--entrypoint {entrypoint}'.format(**ns.__dict__) if ns.entrypoint else ''
+        params = create_params(args)
+        docker_build = 'docker build -t autowp .'
+        docker_run = fmt('docker run -it {entrypoint} autowp {params}')
+        if ns.verbose:
+            pfmt('docker_build = {docker_build}')
+        run(docker_build)
+        if ns.verbose:
+            pfmt('docker_run = {docker_run}')
+        run(docker_run)
+        return
+
+    parser = ArgumentParser(
+        description='SOME DESC',
+        formatter_class=RawDescriptionHelpFormatter,
+        add_help=False,
+        parents=[parser])
+    parser.add_argument(
+        '--config',
+        default='autowp.yml',
+        help='default="%(default)s"; config file to load for defaults')
+
+    ns, rem = parser.parse_known_args(args)
+    cfg = load_config(ns.config)
+
+    parser = ArgumentParser(parents=[parser])
+    parser.set_defaults(**cfg)
+
+    parser.add_argument(
+        '--wordpress-version',
+        default='latest',
+        help='default="%(default)s"; set the wordpress version')
+    parser.add_argument(
+        '--plugins',
+        nargs='+',
+        help='list of plugins to be tested')
+    parser.add_argument(
+        '--import',
+        help='file to import into wordpress instance')
+    ns = parser.parse_args(rem)
+
+    if ns.verbose:
+        print(ns)
+
+    install_wordpress(ns)
+
+if __name__ == '__main__':
+    main(sys.argv[1:])

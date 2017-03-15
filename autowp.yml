@@ -1,0 +1,5 @@
+wordpress_version: 4.7.3
+
+plugins:
+- Akismet
+- Gravatar
