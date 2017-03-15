@@ -1,6 +1,6 @@
 FROM ubuntu
 
-RUN groupadd -r autowp && useradd -r -g autowp -ms /bin/bash autowp
+#RUN groupadd -r autowp && useradd -r -g autowp -ms /bin/bash autowp
 
 RUN echo "mysql-server mysql-server/root_password password autowp" | debconf-set-selections && \
     echo "mysql-server mysql-server/root_password_again password autowp" | debconf-set-selections && \
@@ -12,22 +12,28 @@ RUN echo "mysql-server mysql-server/root_password password autowp" | debconf-set
     python3-pip \
     mysql-server
 
-RUN curl https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o wp && \
-    chmod +x wp && \
-    chown autowp:autowp wp && \
-    mv wp /usr/local/bin
+RUN rm -rf /var/lib/mysql && \
+    mkdir -p /var/lib/mysql /var/run/mysqld && \
+    chown -R mysql:mysql /var/lib/mysql /var/run/mysqld
 
-USER autowp
+RUN curl https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /usr/local/bin/wp && \
+    chmod +x /usr/local/bin/wp
 
-WORKDIR /home/autowp
+ENV MYSQL_ROOT_PASSWORD=autowp MYSQL_USERNAME=autowp MYSQL_PASSWORD=autowp MYSQL_DATABASE=autowp
 
-COPY ./autowp* /home/autowp/
-COPY ./*.py /home/autowp/
-COPY ./requirements.txt /home/autowp/
+WORKDIR /autowp
+
+COPY my.cnf /etc/mysql/my.cnf
+
+COPY run.sh ./
+
+COPY ./autowp* ./
+COPY ./*.py ./
+COPY ./requirements.txt ./
 
 RUN pip3 install -r requirements.txt
 
-CMD /usr/bin/mysqld --initialize
+RUN bash ./run.sh
 
 ENTRYPOINT ["python3", "./autowp"]
 
